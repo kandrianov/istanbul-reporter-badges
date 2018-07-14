@@ -1,5 +1,5 @@
 # Badges for Instanbul code coverage
-Reporter for Instanbul coverage tool that generates badges for code coverage metrics
+Reporter for Instanbul coverage tool that generates badges for code coverage metrics and appends them to README.md file.
 
 ## Example
 
