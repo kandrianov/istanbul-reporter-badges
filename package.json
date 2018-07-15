@@ -1,6 +1,6 @@
 {
   "name": "istanbul-reporter-badges",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "description": "Reporter for Instanbul coverage tool that generates badges for code coverage metrics",
   "main": "index.js",
   "scripts": {

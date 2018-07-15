@@ -1,15 +1,15 @@
 const fs = require('fs');
 const path = require('path');
+const os = require('os');
 
 
 const capitalizeFirstLetter = str => str.charAt(0).toUpperCase() + str.slice(1);
 
+const strictEncodeURIComponent = str => encodeURIComponent(str)
+    .replace(/[!'()*]/g, c => `%${c.charCodeAt(0).toString(16)}`);
+
 class InstanbulReporterBadges {
-    constructor({
-                    readmeFilename = 'README.md',
-                    levelRange = [50, 85],
-                    caption = '###### Coverage summary:\n',
-                }) {
+    constructor({ readmeFilename = 'README.md', levelRange = [50, 85] }) {
         this.readmeFilePath = path.join(process.cwd(), readmeFilename);
 
         this.levelsRange = levelRange;
@@ -19,8 +19,6 @@ class InstanbulReporterBadges {
             medium: 'yellow',
             high: 'brightgreen',
         };
-
-        this.caption = caption;
     }
 
     _getMetricLevel(metric) {
@@ -31,8 +29,8 @@ class InstanbulReporterBadges {
 
     _getBargeUrl(coverageType, metric) {
         const base = 'https://img.shields.io/badge/';
-        const caption = encodeURIComponent(capitalizeFirstLetter(coverageType));
-        const value = encodeURIComponent(`${metric.pct}% (${metric.covered}/${metric.total})`);
+        const caption = strictEncodeURIComponent(capitalizeFirstLetter(coverageType));
+        const value = strictEncodeURIComponent(`${metric.pct}% (${metric.covered}/${metric.total})`);
         const level = this._getMetricLevel(metric);
         const color = this.colors[level];
 
@@ -45,39 +43,25 @@ class InstanbulReporterBadges {
         return `![coverage-${coverageType}-badge](${badgeUrl})`;
     }
 
-    _prepareContent(fileContent, badges) {
-        const token = 'COVERAGE BUDGES';
-        const commentBegin = '<!--';
-        const commentEnd = '-->';
-        const beginPattern = `(${commentBegin}\\s*?${token} BEGIN\\s*?${commentEnd}.*?[\\r\\n]+)`;
-        const endPattern = `(${commentBegin}\\s*?${token} END\\s*?${commentEnd})`;
-        const contentPattern = '[\\s\\S]*?';
+    _prepareContent(fileContent, summary) {
+        return Object.keys(summary).reverse().reduce((content, metric) => {
+            const re = new RegExp(`!\\[coverage-${metric}-badge\\]\\([^)]+\\)`, 'gi');
 
-        const re = new RegExp(`${beginPattern}${contentPattern}${endPattern}`, 'm');
+            const badgeMarkdown = this._getBadgeMarkdown(metric, summary[metric]);
 
-        const badgesLines = badges.reduce((lines, badge) => `${lines}${badge}\n`, '');
-        const innerContent = `${this.caption}${badgesLines}`;
-        const updatedContent = fileContent.replace(re, `$1${innerContent}$2`);
+            if (re.test(content)) return content.replace(re, badgeMarkdown);
 
-        if (!re.test(updatedContent)) {
-            return `<!-- ${token} BEGIN -->\n${innerContent}<!-- ${token} END -->\n${fileContent}`;
-        }
-
-        return updatedContent;
+            return `${badgeMarkdown}${os.EOL}${content}`;
+        }, fileContent);
     }
 
     onStart(root) {
-        const summary = root.getCoverageSummary();
-
-        const coverageTypes = Object.keys(summary.data);
-
-        const badges = coverageTypes
-            .map(coverageType => this._getBadgeMarkdown(coverageType, summary.data[coverageType]));
+        const { data } = root.getCoverageSummary();
 
         if (fs.existsSync(this.readmeFilePath)) {
             const readmeContent = fs.readFileSync(this.readmeFilePath, 'utf8');
 
-            const updatedReadmeContent = this._prepareContent(readmeContent, badges);
+            const updatedReadmeContent = this._prepareContent(readmeContent, data);
 
             fs.writeFileSync(this.readmeFilePath, updatedReadmeContent);
         }
